@@ -20,3 +20,12 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Test output
+.coverage
+coverage.xml
+htmlcov/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/

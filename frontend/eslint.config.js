@@ -20,4 +20,15 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Test helpers export non-components, and destructuring often drops a field on purpose.
+    files: ['src/test/**', '**/*.test.{ts,tsx}', 'e2e/**'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { varsIgnorePattern: '^_', argsIgnorePattern: '^_' },
+      ],
+    },
+  },
 ])
