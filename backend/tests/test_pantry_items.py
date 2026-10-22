@@ -92,3 +92,12 @@ def test_autocomplete(auth_client: TestClient) -> None:
 
     fuzzy = auth_client.get("/api/ingredients?q=brocoli").json()
     assert fuzzy[0]["canonical_name"] == "broccoli"
+
+
+def test_punctuation_only_name_is_rejected(auth_client: TestClient) -> None:
+    for _ in range(2):  # the second attempt used to hit a unique-constraint 500
+        assert auth_client.post("/api/pantry", json={"name": "!!!"}).status_code == 422
+
+
+def test_autocomplete_treats_wildcards_literally(auth_client: TestClient) -> None:
+    assert auth_client.get("/api/ingredients?q=_").json() == []

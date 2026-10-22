@@ -17,3 +17,7 @@ class ConflictError(ServiceError):
 
 class AuthError(ServiceError):
     pass
+
+
+class InvalidInputError(ServiceError):
+    pass

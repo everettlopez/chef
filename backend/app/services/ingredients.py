@@ -15,6 +15,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models import Ingredient, IngredientAlias
+from app.services.errors import InvalidInputError
 
 FUZZY_THRESHOLD = 85
 
@@ -214,15 +215,16 @@ def search(db: Session, query: str, limit: int = 8) -> list[Ingredient]:
                 seen.add(ingredient.id)
                 results.append(ingredient)
 
-    for pattern in (f"{q}%", f"%{q}%"):
+    # Prefix matches first, then substring. autoescape keeps % and _ literal.
+    for op in ("startswith", "contains"):
         collect(
             db.scalars(
                 select(Ingredient)
                 .outerjoin(IngredientAlias)
                 .where(
                     or_(
-                        Ingredient.canonical_name.like(pattern),
-                        IngredientAlias.alias.like(pattern),
+                        getattr(Ingredient.canonical_name, op)(q, autoescape=True),
+                        getattr(IngredientAlias.alias, op)(q, autoescape=True),
                     )
                 )
                 .order_by(Ingredient.canonical_name)
@@ -246,6 +248,8 @@ def get_or_create(db: Session, name: str) -> tuple[Ingredient, Match | None]:
         return ingredient, match
 
     canonical = normalize(name)
+    if not canonical:
+        raise InvalidInputError("Ingredient name needs at least one letter or number")
     ingredient = Ingredient(canonical_name=canonical, category="other")
     ingredient.aliases.append(IngredientAlias(alias=canonical, source="user"))
     db.add(ingredient)

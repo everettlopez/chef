@@ -13,7 +13,13 @@ from app.api.routes import (
     recipes,
 )
 from app.core.config import get_settings
-from app.services.errors import AuthError, ConflictError, NotFoundError, ServiceError
+from app.services.errors import (
+    AuthError,
+    ConflictError,
+    InvalidInputError,
+    NotFoundError,
+    ServiceError,
+)
 
 settings = get_settings()
 
@@ -31,6 +37,7 @@ _STATUS_BY_ERROR = {
     NotFoundError: status.HTTP_404_NOT_FOUND,
     ConflictError: status.HTTP_409_CONFLICT,
     AuthError: status.HTTP_401_UNAUTHORIZED,
+    InvalidInputError: status.HTTP_422_UNPROCESSABLE_CONTENT,
 }
 
 

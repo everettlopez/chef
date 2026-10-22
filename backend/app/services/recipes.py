@@ -53,13 +53,15 @@ def list_recipes(
 ) -> list[Recipe]:
     stmt = select(Recipe).options(selectinload(Recipe.tags)).order_by(Recipe.title)
     if q:
-        pattern = f"%{q.strip()}%"
+        text = q.strip()
         by_ingredient = (
             select(RecipeIngredient.recipe_id)
             .join(Ingredient)
-            .where(Ingredient.canonical_name.like(pattern))
+            .where(Ingredient.canonical_name.contains(text, autoescape=True))
         )
-        stmt = stmt.where(or_(Recipe.title.like(pattern), Recipe.id.in_(by_ingredient)))
+        stmt = stmt.where(
+            or_(Recipe.title.contains(text, autoescape=True), Recipe.id.in_(by_ingredient))
+        )
     if tag_id is not None:
         stmt = stmt.where(
             Recipe.id.in_(select(recipe_tags.c.recipe_id).where(recipe_tags.c.tag_id == tag_id))

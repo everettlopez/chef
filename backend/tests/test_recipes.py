@@ -137,3 +137,8 @@ def test_unknown_diet_tag_is_404(auth_client: TestClient) -> None:
 
 def test_empty_pantry_has_no_recommendations(auth_client: TestClient) -> None:
     assert recommendations(auth_client) == []
+
+
+def test_search_treats_wildcards_literally(auth_client: TestClient) -> None:
+    assert auth_client.get("/api/recipes", params={"q": "_"}).json() == []
+    assert auth_client.get("/api/recipes", params={"q": "%"}).json() == []

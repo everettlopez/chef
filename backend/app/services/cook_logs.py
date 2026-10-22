@@ -48,6 +48,9 @@ def _deduct(log: CookLog, batches: list[PantryItem], needed: Decimal | None, uni
             )
             batch.status = "used"
             return
+        if amount <= 0:
+            # Rounds to nothing in this batch's unit (1 tsp from a gallon): leave it alone.
+            return
 
         take = min(batch.quantity, amount)
         log.usages.append(
@@ -109,7 +112,9 @@ def undo_cook_log(db: Session, household: Household, log_id: int) -> None:
         batch = usage.pantry_item
         if usage.quantity_used is not None and batch.quantity is not None:
             batch.quantity += usage.quantity_used
-        batch.status = usage.previous_status
+        # Only reverse what cooking did; a batch discarded since then stays discarded.
+        if batch.status == "used":
+            batch.status = usage.previous_status
     db.delete(log)
     db.commit()
 

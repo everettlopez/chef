@@ -1,8 +1,9 @@
+import re
 from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Storage = Literal["pantry", "fridge", "freezer"]
 Status = Literal["active", "used", "discarded"]
@@ -33,6 +34,14 @@ class PantryItemCreate(BaseModel):
     purchased_on: date | None = None
     # Set to override the estimate.
     expires_on: date | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _name_has_text(cls, name: str | None) -> str | None:
+        # Punctuation-only text would normalize to an empty ingredient name.
+        if name is not None and not re.search(r"[A-Za-z0-9]", name):
+            raise ValueError("Ingredient name needs at least one letter or number")
+        return name
 
     @model_validator(mode="after")
     def _needs_ingredient(self) -> "PantryItemCreate":

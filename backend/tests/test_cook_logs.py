@@ -99,3 +99,27 @@ def test_cook_logs_are_household_scoped(sign_up: SignUp) -> None:
     assert ben.get("/api/cook-logs").json() == []
     assert ben.delete(f"/api/cook-logs/{log['id']}").status_code == 404
     assert ana.post("/api/cook-logs", json={"recipe_id": 999999}).status_code == 404
+
+
+def test_undo_keeps_a_batch_discarded_after_cooking(auth_client: TestClient) -> None:
+    spinach = add(auth_client, "spinach", 4, "cup")
+    log = auth_client.post(
+        "/api/cook-logs", json={"recipe_id": recipe_id(auth_client, "garlic butter")}
+    ).json()
+    auth_client.delete(f"/api/pantry/{spinach['id']}")  # it went bad after dinner
+
+    auth_client.delete(f"/api/cook-logs/{log['id']}")
+
+    assert spinach["id"] not in pantry(auth_client)
+
+
+def test_amounts_too_small_for_the_batch_unit_are_skipped(auth_client: TestClient) -> None:
+    # The omelette's 2 tbsp of milk is optional, so use cinnamon: 1/2 tsp from a cup.
+    cinnamon = add(auth_client, "cinnamon", 1, "gallon")
+
+    log = auth_client.post(
+        "/api/cook-logs", json={"recipe_id": recipe_id(auth_client, "oatmeal"), "servings_made": 1}
+    ).json()
+
+    assert pantry(auth_client)[cinnamon["id"]]["quantity"] == 1
+    assert all(u["ingredient_name"] != "cinnamon" for u in log["usages"])
