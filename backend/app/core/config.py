@@ -12,6 +12,13 @@ class Settings(BaseSettings):
     )
     cors_origins: list[str] = ["http://localhost:5173"]
 
+    # Signs session tokens. Override in backend/.env for anything but local dev.
+    secret_key: str = "dev-only-change-me-dev-only-change-me"
+    session_cookie_name: str = "chef_session"
+    # Set true when served over HTTPS.
+    session_cookie_secure: bool = False
+    session_days: int = 14
+
 
 @lru_cache
 def get_settings() -> Settings:
