@@ -31,6 +31,12 @@
   --warning-tint: color-mix(in srgb, #ff9500 16%, transparent);
   --success: #1f7a3a;
 
+  /* Toasts are dark in both themes, like iOS banners; the thumb is a switch knob. */
+  --toast: rgb(28 28 30 / 0.95);
+  --on-toast: #ffffff;
+  --toast-accent: #5fd3a0;
+  --thumb: #ffffff;
+
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px rgb(0 0 0 / 0.04);
   --shadow-sheet: 0 -8px 40px rgb(0 0 0 / 0.16);
 }
@@ -58,6 +64,7 @@
     --warning: #ffb340;
     --warning-tint: color-mix(in srgb, #ff9f0a 20%, transparent);
     --success: #30d158;
+    --toast: rgb(58 58 60 / 0.95);
 
     --shadow-card: none;
     --shadow-sheet: 0 -8px 40px rgb(0 0 0 / 0.5);
@@ -89,6 +96,10 @@
   --color-warning: var(--warning);
   --color-warning-tint: var(--warning-tint);
   --color-success: var(--success);
+  --color-toast: var(--toast);
+  --color-on-toast: var(--on-toast);
+  --color-toast-accent: var(--toast-accent);
+  --color-thumb: var(--thumb);
 
   --shadow-card: var(--shadow-card);
   --shadow-sheet: var(--shadow-sheet);

@@ -34,9 +34,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={toast.id}
             role="status"
-            className="pointer-events-auto flex w-full max-w-md animate-toast-in items-center gap-3 rounded-2xl bg-[#1c1c1e]/95 py-1.5 pr-1.5 pl-4 text-white shadow-sheet backdrop-blur-xl dark:bg-[#3a3a3c]/95"
+            className="pointer-events-auto flex w-full max-w-md animate-toast-in items-center gap-3 rounded-2xl bg-toast py-1.5 pr-1.5 pl-4 text-on-toast shadow-sheet backdrop-blur-xl"
           >
-            <CheckCircle2 aria-hidden className="size-5 shrink-0 text-[#5fd3a0]" />
+            <CheckCircle2 aria-hidden className="size-5 shrink-0 text-toast-accent" />
             <p className="flex-1 py-2 text-subhead">{toast.message}</p>
             {toast.actionLabel && toast.onAction && (
               <button
@@ -45,7 +45,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   toast.onAction?.()
                   setToast(null)
                 }}
-                className="min-h-11 rounded-xl px-3 text-subhead font-semibold text-[#5fd3a0] hover:bg-white/10"
+                className="min-h-11 rounded-xl px-3 text-subhead font-semibold text-toast-accent hover:bg-on-toast/10"
               >
                 {toast.actionLabel}
               </button>

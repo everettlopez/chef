@@ -52,32 +52,45 @@ export function useDietPrefs() {
   })
 }
 
-export function useSetDietPrefs() {
+/** Diet tags are "require" (only show matches); allergen tags are "avoid" (hide matches). */
+function modeFor(tag: Tag): DietPref['mode'] {
+  return tag.kind === 'allergen' ? 'avoid' : 'require'
+}
+
+/**
+ * Turn one preference on or off. Each toggle updates the cached list right away; the
+ * PUTs run one at a time (scope) and each sends the cache as it is when the PUT starts,
+ * so the last one always carries every toggle, however fast they come.
+ */
+export function useToggleDietPref() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: setDietPrefs,
-    // Optimistic, so quick successive toggles each build on the one before.
-    onMutate: async (next) => {
+    mutationKey: dietKeys.prefs,
+    scope: { id: 'diet-prefs' },
+    mutationFn: () =>
+      setDietPrefs(
+        (queryClient.getQueryData<DietPref[]>(dietKeys.prefs) ?? []).map((p) => ({
+          tag_id: p.tag.id,
+          mode: p.mode,
+        })),
+      ),
+    onMutate: async ({ tag, on }: { tag: Tag; on: boolean }) => {
       await queryClient.cancelQueries({ queryKey: dietKeys.prefs })
-      const previous = queryClient.getQueryData<DietPref[]>(dietKeys.prefs)
-      const tags = queryClient.getQueryData<Tag[]>(dietKeys.tags) ?? []
-      queryClient.setQueryData<DietPref[]>(
-        dietKeys.prefs,
-        next.flatMap(({ tag_id, mode }) => {
-          const tag = tags.find((t) => t.id === tag_id)
-          return tag ? [{ tag, mode }] : []
-        }),
-      )
-      return { previous }
+      queryClient.setQueryData<DietPref[]>(dietKeys.prefs, (prefs = []) => {
+        const others = prefs.filter((p) => p.tag.id !== tag.id)
+        return on ? [...others, { tag, mode: modeFor(tag) }] : others
+      })
     },
-    onError: (_error, _next, context) => {
-      queryClient.setQueryData(dietKeys.prefs, context?.previous)
-    },
-    onSettled: () =>
-      Promise.all([
+    // On failure, the refetch in onSettled restores what the server actually has.
+    onSettled: () => {
+      // Refetch once the last queued toggle lands, so an early refetch can't flip a
+      // switch back while later saves are still pending. (This one still counts.)
+      if (queryClient.isMutating({ mutationKey: dietKeys.prefs }) > 1) return
+      return Promise.all([
         queryClient.invalidateQueries({ queryKey: dietKeys.prefs }),
         queryClient.invalidateQueries({ queryKey: recipeKeys.all }),
-      ]),
+      ])
+    },
   })
 }

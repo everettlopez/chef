@@ -1,13 +1,13 @@
 import { LogOut } from 'lucide-react'
 import { useNavigate } from 'react-router'
-import type { DietPref, Tag } from '../api/recipes'
+import type { Tag } from '../api/recipes'
 import { Button } from '../components/ui/Button'
 import { ErrorBanner, ListSkeleton, PageHeader } from '../components/ui/Feedback'
 import { List, ListRow } from '../components/ui/List'
 import { Switch } from '../components/ui/Switch'
 import { useLogout, useMe } from '../hooks/useAuth'
-import { useDietaryTags, useDietPrefs, useSetDietPrefs } from '../hooks/useRecipes'
-import { tagLabel } from '../lib/format'
+import { useDietaryTags, useDietPrefs, useToggleDietPref } from '../hooks/useRecipes'
+import { dietPrefLabel } from '../lib/format'
 
 const dietCopy: Record<string, string> = {
   vegetarian: 'No meat or fish',
@@ -22,20 +22,14 @@ export function SettingsPage() {
   const { data: me } = useMe()
   const tags = useDietaryTags()
   const prefs = useDietPrefs()
-  const setPrefs = useSetDietPrefs()
+  const setPrefs = useToggleDietPref()
   const logout = useLogout()
   const navigate = useNavigate()
 
-  // Diet tags are "require" (only show), allergen tags are "avoid" (hide).
-  const modeFor = (tag: Tag): DietPref['mode'] => (tag.kind === 'allergen' ? 'avoid' : 'require')
   const enabled = new Set(prefs.data?.map((p) => p.tag.id))
 
   function toggle(tag: Tag, on: boolean) {
-    const next = (prefs.data ?? [])
-      .filter((p) => p.tag.id !== tag.id)
-      .map((p) => ({ tag_id: p.tag.id, mode: p.mode }))
-    if (on) next.push({ tag_id: tag.id, mode: modeFor(tag) })
-    setPrefs.mutate(next)
+    setPrefs.mutate({ tag, on })
   }
 
   function signOut() {
@@ -102,10 +96,7 @@ function PrefRow({
   checked: boolean
   onChange: (tag: Tag, on: boolean) => void
 }) {
-  const title =
-    tag.kind === 'allergen'
-      ? `Avoid ${tagLabel(tag.name).replace('Contains ', '').toLowerCase()}`
-      : tagLabel(tag.name)
+  const title = dietPrefLabel(tag)
   return (
     <ListRow
       title={title}

@@ -22,7 +22,7 @@ import { useToast } from '../components/ui/toastContext'
 import { useLogCook, useUndoCookLog } from '../hooks/useCookLogs'
 import { useRecipe } from '../hooks/useRecipes'
 import { cn } from '../lib/cn'
-import { formatMinutes, formatQuantity, tagLabel, titleCase } from '../lib/format'
+import { describeUsage, formatMinutes, tagLabel } from '../lib/format'
 
 export function RecipeDetailPage() {
   const recipeId = Number(useParams().recipeId)
@@ -215,11 +215,7 @@ function CookForm({ recipe, onDone }: { recipe: RecipeDetail; onDone: () => void
       { recipe_id: recipe.id, servings_made: servings },
       {
         onSuccess: (log) => {
-          const used = log.usages.map((u) =>
-            u.quantity_used === null
-              ? titleCase(u.ingredient_name)
-              : `${formatQuantity(u.quantity_used, u.unit)} ${u.ingredient_name}`,
-          )
+          const used = log.usages.map(describeUsage)
           toast({
             message: used.length
               ? `Logged! Used ${used.slice(0, 3).join(', ')}${used.length > 3 ? ` and ${used.length - 3} more` : ''}.`

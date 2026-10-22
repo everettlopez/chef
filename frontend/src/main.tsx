@@ -1,14 +1,24 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { RouterProvider } from 'react-router/dom'
+import { authKeys } from './api/auth'
 import { ApiError } from './api/client'
 import { ToastProvider } from './components/ui/Toast'
 import { router } from './router'
 import './index.css'
 
+/** A 401 anywhere means the session is gone; RequireAuth then sends the user to sign in. */
+function signOutOnUnauthorized(error: Error) {
+  if (error instanceof ApiError && error.status === 401) {
+    queryClient.setQueryData(authKeys.me, null)
+  }
+}
+
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({ onError: signOutOnUnauthorized }),
+  mutationCache: new MutationCache({ onError: signOutOnUnauthorized }),
   defaultOptions: {
     queries: {
       staleTime: 30_000,

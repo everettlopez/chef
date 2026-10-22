@@ -4,7 +4,7 @@ import { EmptyState, ErrorBanner, ListSkeleton, PageHeader } from '../components
 import { List, ListRow } from '../components/ui/List'
 import { useToast } from '../components/ui/toastContext'
 import { useCookLogs, useUndoCookLog } from '../hooks/useCookLogs'
-import { formatDateTime, formatQuantity, titleCase } from '../lib/format'
+import { describeUsage, formatDateTime } from '../lib/format'
 
 export function HistoryPage() {
   const { data: logs, isPending, isError } = useCookLogs()
@@ -48,14 +48,7 @@ export function HistoryPage() {
                   </span>
                   {log.usages.length > 0 && (
                     <span className="mt-0.5 block text-footnote text-label-tertiary">
-                      Used{' '}
-                      {log.usages
-                        .map((u) =>
-                          u.quantity_used === null
-                            ? titleCase(u.ingredient_name)
-                            : `${formatQuantity(u.quantity_used, u.unit)} ${u.ingredient_name}`,
-                        )
-                        .join(', ')}
+                      Used {log.usages.map(describeUsage).join(', ')}
                     </span>
                   )}
                 </>

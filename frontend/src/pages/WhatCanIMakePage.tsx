@@ -18,7 +18,7 @@ import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { useMe } from '../hooks/useAuth'
 import { usePantryItems } from '../hooks/usePantry'
 import { useDietPrefs, useRecommendations } from '../hooks/useRecipes'
-import { formatMinutes, tagLabel, titleCase } from '../lib/format'
+import { dietPrefLabel, formatMinutes, tagLabel, titleCase } from '../lib/format'
 
 type MissingFilter = 'any' | '0' | '1' | '2'
 
@@ -84,13 +84,7 @@ export function WhatCanIMakePage() {
                 className="inline-flex min-h-11 items-center gap-1.5 self-start rounded-xl px-2 text-subhead text-label-secondary hover:bg-fill sm:self-auto"
               >
                 <Filter aria-hidden className="size-4" />
-                {prefs.data
-                  .map((p) =>
-                    p.mode === 'avoid'
-                      ? `No ${tagLabel(p.tag.name).replace('Contains ', '').toLowerCase()}`
-                      : tagLabel(p.tag.name),
-                  )
-                  .join(' · ')}
+                {prefs.data.map((p) => dietPrefLabel(p.tag)).join(' · ')}
               </Link>
             )}
           </div>

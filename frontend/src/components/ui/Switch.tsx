@@ -27,7 +27,7 @@ export function Switch({ checked, onChange, label, disabled }: SwitchProps) {
       >
         <span
           className={cn(
-            'absolute top-0.5 left-0.5 size-[1.6875rem] rounded-full bg-white shadow-[0_2px_6px_rgb(0_0_0/0.2)]',
+            'absolute top-0.5 left-0.5 size-[1.6875rem] rounded-full bg-thumb shadow-[0_2px_6px_rgb(0_0_0/0.2)]',
             'transition-transform duration-200 ease-out-soft',
             checked && 'translate-x-5',
           )}

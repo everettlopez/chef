@@ -107,3 +107,20 @@ export function defaultStorage(ingredient: Ingredient): Storage {
 export function tagLabel(name: string): string {
   return titleCase(name.replace(/-/g, ' '))
 }
+
+/** "Vegetarian" for a diet tag, "Avoid nuts" for an allergen tag ("contains-nuts"). */
+export function dietPrefLabel(tag: { name: string; kind: string }): string {
+  if (tag.kind !== 'allergen') return tagLabel(tag.name)
+  return `Avoid ${tag.name.replace(/^contains-/, '').replace(/-/g, ' ')}`
+}
+
+/** One pantry draw from a cook log: "1 lb chicken breast", or just the name if used up. */
+export function describeUsage(usage: {
+  ingredient_name: string
+  quantity_used: number | null
+  unit: string | null
+}): string {
+  return usage.quantity_used === null
+    ? titleCase(usage.ingredient_name)
+    : `${formatQuantity(usage.quantity_used, usage.unit)} ${usage.ingredient_name}`
+}
