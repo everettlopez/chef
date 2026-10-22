@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     test_database_url: str = (
         "mysql+pymysql://pantry:pantry@127.0.0.1:3307/pantry_test?charset=utf8mb4"
     )
+    # Scratch database for the Alembic upgrade/downgrade round-trip test.
+    migrate_database_url: str = (
+        "mysql+pymysql://pantry:pantry@127.0.0.1:3307/pantry_migrate?charset=utf8mb4"
+    )
     cors_origins: list[str] = ["http://localhost:5173"]
 
     # Signs session tokens. Override in backend/.env for anything but local dev.

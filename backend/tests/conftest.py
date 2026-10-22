@@ -92,3 +92,9 @@ def ingredient_id(db: Session, name: str) -> int:
     found = db.scalar(select(Ingredient.id).where(Ingredient.canonical_name == name))
     assert found is not None, name
     return found
+
+
+def join_household(joiner: TestClient, owner: TestClient) -> None:
+    """Move `joiner` into `owner`'s household via its invite code."""
+    code = owner.get("/api/household").json()["invite_code"]
+    assert joiner.post("/api/household/join", json={"invite_code": code}).status_code == 200

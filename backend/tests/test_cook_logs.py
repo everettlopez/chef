@@ -1,8 +1,9 @@
 from datetime import date, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 
-from tests.conftest import SignUp
+from tests.conftest import SignUp, join_household
 
 
 def add(client: TestClient, name: str, quantity=None, unit=None, days=None) -> dict:
@@ -123,3 +124,108 @@ def test_amounts_too_small_for_the_batch_unit_are_skipped(auth_client: TestClien
 
     assert pantry(auth_client)[cinnamon["id"]]["quantity"] == 1
     assert all(u["ingredient_name"] != "cinnamon" for u in log["usages"])
+
+
+def test_undo_twice_is_404(auth_client: TestClient) -> None:
+    log = auth_client.post(
+        "/api/cook-logs", json={"recipe_id": recipe_id(auth_client, "omelette")}
+    ).json()
+
+    assert auth_client.delete(f"/api/cook-logs/{log['id']}").status_code == 204
+    assert auth_client.delete(f"/api/cook-logs/{log['id']}").status_code == 404
+    assert auth_client.get("/api/cook-logs").json() == []
+
+
+@pytest.mark.parametrize("servings", [0, -1, 51])
+def test_servings_are_validated(auth_client: TestClient, servings: int) -> None:
+    response = auth_client.post(
+        "/api/cook-logs",
+        json={"recipe_id": recipe_id(auth_client, "omelette"), "servings_made": servings},
+    )
+    assert response.status_code == 422
+
+
+def test_servings_default_to_the_recipe(auth_client: TestClient) -> None:
+    log = auth_client.post(
+        "/api/cook-logs", json={"recipe_id": recipe_id(auth_client, "garlic butter")}
+    ).json()
+
+    assert log["servings_made"] == 2
+    assert log["recipe_title"] == "Garlic Butter Chicken with Spinach Rice"
+    assert log["cooked_by"] == "Cook"
+
+
+def test_cooking_with_an_empty_pantry_logs_no_usages(auth_client: TestClient) -> None:
+    log = auth_client.post(
+        "/api/cook-logs", json={"recipe_id": recipe_id(auth_client, "omelette")}
+    ).json()
+    assert log["usages"] == []
+
+
+def test_have_some_batches_are_left_alone(auth_client: TestClient) -> None:
+    garlic = add(auth_client, "garlic")
+
+    log = auth_client.post(
+        "/api/cook-logs", json={"recipe_id": recipe_id(auth_client, "garlic butter")}
+    ).json()
+
+    assert garlic["id"] in pantry(auth_client)
+    assert all(u["ingredient_name"] != "garlic" for u in log["usages"])
+
+
+def test_staples_and_optional_lines_are_not_deducted(auth_client: TestClient) -> None:
+    salt = add(auth_client, "salt", 100, "g")
+    milk = add(auth_client, "milk", 1, "cup")
+
+    auth_client.post("/api/cook-logs", json={"recipe_id": recipe_id(auth_client, "omelette")})
+
+    items = pantry(auth_client)
+    assert items[salt["id"]]["quantity"] == 100
+    assert items[milk["id"]]["quantity"] == 1
+
+
+def test_deduction_spans_batches_and_undo_restores_each(auth_client: TestClient) -> None:
+    first = add(auth_client, "chicken breast", 0.25, "lb", days=1)
+    second = add(auth_client, "chicken breast", 0.5, "lb", days=2)
+    third = add(auth_client, "chicken breast", 2, "lb", days=5)
+
+    log = auth_client.post(
+        "/api/cook-logs", json={"recipe_id": recipe_id(auth_client, "garlic butter")}
+    ).json()
+
+    items = pantry(auth_client)
+    assert first["id"] not in items and second["id"] not in items
+    assert items[third["id"]]["quantity"] == 1.75
+    chicken = [
+        u["quantity_used"] for u in log["usages"] if u["ingredient_name"] == "chicken breast"
+    ]
+    assert sorted(chicken) == [0.25, 0.25, 0.5]
+
+    auth_client.delete(f"/api/cook-logs/{log['id']}")
+    items = pantry(auth_client)
+    assert [items[i["id"]]["quantity"] for i in (first, second, third)] == [0.25, 0.5, 2]
+
+
+def test_history_is_newest_first_and_shared(sign_up: SignUp) -> None:
+    ana = sign_up("ana@example.com", "Ana")
+    ben = sign_up("ben@example.com", "Ben")
+    join_household(ben, ana)
+    first = ana.post("/api/cook-logs", json={"recipe_id": recipe_id(ana, "omelette")}).json()
+    second = ben.post("/api/cook-logs", json={"recipe_id": recipe_id(ben, "oatmeal")}).json()
+
+    history = ana.get("/api/cook-logs").json()
+
+    assert [h["id"] for h in history] == [second["id"], first["id"]]
+    assert [h["cooked_by"] for h in history] == ["Ben", "Ana"]
+    # Any member can undo a shared meal.
+    assert ana.delete(f"/api/cook-logs/{second['id']}").status_code == 204
+
+
+def test_a_cook_does_not_touch_other_households(sign_up: SignUp) -> None:
+    ana = sign_up("ana@example.com", "Ana")
+    ben = sign_up("ben@example.com", "Ben")
+    bens_eggs = add(ben, "egg", 12)
+
+    ana.post("/api/cook-logs", json={"recipe_id": recipe_id(ana, "omelette")})
+
+    assert pantry(ben)[bens_eggs["id"]]["quantity"] == 12
