@@ -1,7 +1,7 @@
 [project]
-name = "pantry-backend"
+name = "chef-backend"
 version = "0.1.0"
-description = "Virtual Pantry API"
+description = "Chef API: pantry, recipes and recommendations"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
