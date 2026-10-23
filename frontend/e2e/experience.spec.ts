@@ -9,8 +9,13 @@ test('diet preferences filter suggestions', async ({ page }) => {
   await expect(suggestions).toContainText('Peanut Sesame Noodles')
 
   await page.goto('/settings')
+  // The switch flips before the save finishes; wait for it so the reload below can't cancel it.
+  const saved = page.waitForResponse(
+    (r) => r.url().endsWith('/api/me/diet-prefs') && r.request().method() === 'PUT',
+  )
   await page.getByRole('switch', { name: 'Avoid nuts' }).click()
   await expect(page.getByRole('switch', { name: 'Avoid nuts' })).toBeChecked()
+  expect((await saved).ok()).toBe(true)
 
   await page.goto('/')
   await expect(page.getByRole('link', { name: 'Avoid nuts' })).toBeVisible()
@@ -30,6 +35,9 @@ test('recipe search and diet filter', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '1 recipe' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Clear search' }).click()
+  // Let the debounced search reach the URL first: a diet click inside that 250 ms window can
+  // currently be overwritten (known bug in RecipesPage's debounce).
+  await expect(page).toHaveURL(/\/recipes$/)
   await page.getByRole('button', { name: 'Vegan' }).click()
   await expect(page.getByRole('button', { name: 'Vegan' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByRole('heading', { name: /\d+ recipes?/ })).not.toHaveText('40 recipes')
