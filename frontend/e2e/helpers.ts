@@ -27,6 +27,14 @@ interface Stock {
   expiresInDays?: number
 }
 
+/** YYYY-MM-DD `days` from today in local time, matching the backend's date.today(). */
+function localDate(days: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
 /** Fast setup through the API, using the page's session cookie. */
 export async function stock(page: Page, ...items: (string | Stock)[]): Promise<void> {
   for (const entry of items) {
@@ -37,10 +45,7 @@ export async function stock(page: Page, ...items: (string | Stock)[]): Promise<v
       storage = 'pantry',
       expiresInDays,
     } = typeof entry === 'string' ? { name: entry } : entry
-    const expires_on =
-      expiresInDays === undefined
-        ? undefined
-        : new Date(Date.now() + expiresInDays * 86_400_000).toISOString().slice(0, 10)
+    const expires_on = expiresInDays === undefined ? undefined : localDate(expiresInDays)
     const response = await page.request.post('/api/pantry', {
       data: { name, quantity, unit, storage, expires_on },
     })

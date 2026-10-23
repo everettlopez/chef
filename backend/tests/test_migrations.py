@@ -1,5 +1,6 @@
 """Alembic round trip on a scratch database (pantry_migrate), separate from pantry_test."""
 
+import os
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -23,7 +24,10 @@ def migrate_engine() -> Iterator[Engine]:
     try:
         engine.connect().close()
     except OperationalError:
-        pytest.skip("pantry_migrate database not available (see docker/mysql/init)")
+        message = "pantry_migrate database not available (see README > Testing)"
+        if os.environ.get("CI"):
+            pytest.fail(message)
+        pytest.skip(message)
     yield engine
     engine.dispose()
 

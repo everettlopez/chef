@@ -18,7 +18,12 @@ def test_health_reports_database_down() -> None:
     dead = create_engine(
         "mysql+pymysql://nobody:x@127.0.0.1:1/none", connect_args={"connect_timeout": 1}
     )
-    app.dependency_overrides[get_db] = lambda: Session(dead)
+
+    def dead_db():
+        with Session(dead) as db:
+            yield db
+
+    app.dependency_overrides[get_db] = dead_db
     try:
         with TestClient(app) as client:
             response = client.get("/api/health")

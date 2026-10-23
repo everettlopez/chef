@@ -144,7 +144,7 @@ Coverage: `uv run pytest --cov` (backend) and `npm run test:coverage` (frontend,
   migration test uses `pantry_migrate`, and Playwright uses `pantry_e2e`, which it migrates and
   seeds itself. None of them touch your `pantry` dev data. They are created when the MySQL
   volume is first initialized; if your volume predates them, run
-  `Get-Content docker/mysql/init/01-test-database.sql | docker exec -i pantry-mysql mysql -uroot -prootpassword`
+  `Get-Content docker/mysql/init/01-test-database.sql | docker exec -i pantry-mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD"'`
   (or `docker compose down -v` to start fresh).
 - **End-to-end setup.** Run `npx playwright install chromium` once. Playwright starts its own
   backend on :8001 and frontend on :5174, so it doesn't clash with your dev servers. Every test
