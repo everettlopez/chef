@@ -1,4 +1,4 @@
-from tests.conftest import SignUp
+from tests.conftest import SignUp, join_household
 
 
 def test_join_with_invite_code_shares_pantry(sign_up: SignUp) -> None:
@@ -79,3 +79,72 @@ def test_joining_your_own_household_is_a_no_op(auth_client) -> None:
 
     assert again.status_code == 200
     assert again.json() == before
+
+
+def test_members_list_shows_roles_and_emails(sign_up: SignUp) -> None:
+    ana = sign_up("ana@example.com", "Ana")
+    ben = sign_up("ben@example.com", "Ben")
+    join_household(ben, ana)
+
+    members = ana.get("/api/household").json()["members"]
+
+    assert [(m["display_name"], m["email"], m["role"]) for m in members] == [
+        ("Ana", "ana@example.com", "owner"),
+        ("Ben", "ben@example.com", "member"),
+    ]
+
+
+def test_regenerated_code_retires_the_old_one(sign_up: SignUp) -> None:
+    ana = sign_up("ana@example.com", "Ana")
+    ben = sign_up("ben@example.com", "Ben")
+    old_code = ana.get("/api/household").json()["invite_code"]
+    new_code = ana.post("/api/household/invite-code").json()["invite_code"]
+
+    assert ben.post("/api/household/join", json={"invite_code": old_code}).status_code == 404
+    assert ben.post("/api/household/join", json={"invite_code": new_code}).status_code == 200
+
+
+def test_invite_codes_avoid_ambiguous_characters(auth_client) -> None:
+    url = "/api/household/invite-code"
+    codes = {auth_client.post(url).json()["invite_code"] for _ in range(20)}
+
+    for code in codes:
+        assert len(code) == 8
+        assert not set(code) & set("01IO")
+        assert code == code.upper()
+
+
+def test_invite_code_ignores_surrounding_whitespace(sign_up: SignUp) -> None:
+    ana = sign_up("ana@example.com", "Ana")
+    ben = sign_up("ben@example.com", "Ben")
+    code = ana.get("/api/household").json()["invite_code"]
+
+    joined = ben.post("/api/household/join", json={"invite_code": f"  {code.lower()}  "})
+
+    assert joined.status_code == 200
+
+
+def test_household_input_is_validated(auth_client) -> None:
+    assert auth_client.patch("/api/household", json={"name": "   "}).status_code == 422
+    assert auth_client.patch("/api/household", json={"name": "x" * 81}).status_code == 422
+    assert auth_client.post("/api/household/join", json={"invite_code": "AB"}).status_code == 422
+
+
+def test_rename_is_visible_to_every_member(sign_up: SignUp) -> None:
+    ana = sign_up("ana@example.com", "Ana")
+    ben = sign_up("ben@example.com", "Ben")
+    join_household(ben, ana)
+
+    ben.patch("/api/household", json={"name": "Shared Flat"})
+
+    assert ana.get("/api/household").json()["name"] == "Shared Flat"
+
+
+def test_joined_member_sees_and_edits_shared_items(sign_up: SignUp) -> None:
+    ana = sign_up("ana@example.com", "Ana")
+    ben = sign_up("ben@example.com", "Ben")
+    join_household(ben, ana)
+    item = ana.post("/api/pantry", json={"name": "rice", "quantity": 2, "unit": "cup"}).json()
+
+    assert ben.patch(f"/api/pantry/{item['id']}", json={"quantity": 1}).status_code == 200
+    assert ana.get("/api/pantry").json()[0]["quantity"] == 1

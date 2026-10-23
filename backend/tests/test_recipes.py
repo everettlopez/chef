@@ -1,6 +1,10 @@
 from datetime import date, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
+
+from app.services.recipes import URGENT_DAYS
+from tests.conftest import SignUp, join_household
 
 GARLIC_CHICKEN = "Garlic Butter Chicken with Spinach Rice"
 
@@ -142,3 +146,175 @@ def test_empty_pantry_has_no_recommendations(auth_client: TestClient) -> None:
 def test_search_treats_wildcards_literally(auth_client: TestClient) -> None:
     assert auth_client.get("/api/recipes", params={"q": "_"}).json() == []
     assert auth_client.get("/api/recipes", params={"q": "%"}).json() == []
+
+
+def omelette(client: TestClient) -> dict | None:
+    title = "Spinach & Cheddar Omelette"
+    return next((r for r in recommendations(client) if r["recipe"]["title"] == title), None)
+
+
+def test_optional_and_staple_lines_alone_do_not_recommend(auth_client: TestClient) -> None:
+    # The omelette's milk is optional and its salt is a staple.
+    stock(auth_client, "milk", "salt")
+    assert omelette(auth_client) is None
+
+
+def test_optional_lines_are_never_missing(auth_client: TestClient) -> None:
+    stock(auth_client, "egg", "spinach", "cheddar cheese", "butter")
+    rec = omelette(auth_client)
+
+    assert rec is not None
+    assert rec["required_count"] == 4
+    assert "milk" not in rec["missing"]
+    assert "salt" not in rec["missing"]
+
+
+def test_used_and_discarded_batches_do_not_count(auth_client: TestClient) -> None:
+    stock(auth_client, "egg", "spinach", "cheddar cheese", "butter")
+    items = {i["ingredient"]["canonical_name"]: i for i in auth_client.get("/api/pantry").json()}
+    auth_client.delete(f"/api/pantry/{items['spinach']['id']}")
+    auth_client.patch(f"/api/pantry/{items['butter']['id']}", json={"status": "used"})
+
+    rec = omelette(auth_client)
+
+    assert rec is not None
+    assert rec["have_count"] == 2
+    assert sorted(rec["missing"]) == ["butter", "spinach"]
+
+
+@pytest.mark.parametrize(
+    ("days", "urgent"), [(-2, True), (0, True), (URGENT_DAYS, True), (URGENT_DAYS + 1, False)]
+)
+def test_urgency_window_boundary(auth_client: TestClient, days: int, urgent: bool) -> None:
+    stock(auth_client, "egg", "spinach", "cheddar cheese", "butter", expires_in={"spinach": days})
+
+    rec = omelette(auth_client)
+
+    assert rec is not None
+    assert (rec["expiring"] == ["spinach"]) is urgent
+    assert rec["score"] == (0.775 if urgent else 0.7)
+
+
+def test_soonest_batch_decides_urgency(auth_client: TestClient) -> None:
+    stock(auth_client, "egg", "cheddar cheese", "butter")
+    stock(auth_client, "spinach", expires_in={"spinach": 30})
+    stock(auth_client, "spinach", expires_in={"spinach": 1})
+
+    rec = omelette(auth_client)
+
+    assert rec is not None
+    assert rec["expiring"] == ["spinach"]
+    assert rec["have_count"] == 4  # two batches still count once
+
+
+def test_partial_coverage_score(auth_client: TestClient) -> None:
+    stock(auth_client, "egg", "spinach")
+
+    rec = omelette(auth_client)
+
+    assert rec is not None
+    assert rec["coverage"] == 0.5
+    assert rec["score"] == 0.35
+    assert sorted(rec["missing"]) == ["butter", "cheddar cheese"]
+
+
+def test_results_are_sorted_by_score(auth_client: TestClient) -> None:
+    stock(auth_client, "egg", "spinach", "cheddar cheese", "butter", "milk", "rice", "garlic",
+          expires_in={"garlic": 1})  # fmt: skip
+    scores = [r["score"] for r in recommendations(auth_client)]
+
+    assert scores == sorted(scores, reverse=True)
+    assert len(scores) > 3
+
+
+def test_recommendation_limit(auth_client: TestClient) -> None:
+    stock(auth_client, "egg", "garlic", "onion", "butter", "rice")
+
+    assert len(recommendations(auth_client, limit=2)) == 2
+    assert auth_client.get("/api/recipes/recommendations", params={"limit": 0}).status_code == 422
+    assert (
+        auth_client.get("/api/recipes/recommendations", params={"max_missing": -1}).status_code
+        == 422
+    )
+
+
+def test_avoiding_an_allergen_alone(auth_client: TestClient) -> None:
+    stock(auth_client, "peanut butter", "pasta", "soy sauce", "garlic", "rice")
+    nuts = tag_id(auth_client, "contains-nuts")
+
+    def has_nuts(rec: dict) -> bool:
+        return "contains-nuts" in [t["name"] for t in rec["recipe"]["tags"]]
+
+    assert any(has_nuts(r) for r in recommendations(auth_client))
+    auth_client.put("/api/me/diet-prefs", json={"prefs": [{"tag_id": nuts, "mode": "avoid"}]})
+    after = recommendations(auth_client)
+
+    assert after
+    assert not any(has_nuts(r) for r in after)
+
+
+def test_requiring_two_tags_needs_both(auth_client: TestClient) -> None:
+    stock(auth_client, "rice", "black beans", "onion", "garlic", "tomato", "egg", "butter")
+    vegan, gluten_free = tag_id(auth_client, "vegan"), tag_id(auth_client, "gluten-free")
+    auth_client.put(
+        "/api/me/diet-prefs",
+        json={"prefs": [{"tag_id": vegan, "mode": "require"},
+                        {"tag_id": gluten_free, "mode": "require"}]},
+    )  # fmt: skip
+
+    for rec in recommendations(auth_client):
+        tags = {t["name"] for t in rec["recipe"]["tags"]}
+        assert {"vegan", "gluten-free"} <= tags
+
+
+def test_diet_prefs_are_replaced_not_merged(auth_client: TestClient) -> None:
+    vegan, nuts = tag_id(auth_client, "vegan"), tag_id(auth_client, "contains-nuts")
+    auth_client.put("/api/me/diet-prefs", json={"prefs": [{"tag_id": vegan, "mode": "require"}]})
+
+    saved = auth_client.put(
+        "/api/me/diet-prefs", json={"prefs": [{"tag_id": nuts, "mode": "avoid"}]}
+    ).json()
+
+    assert [(p["tag"]["name"], p["mode"]) for p in saved] == [("contains-nuts", "avoid")]
+    assert auth_client.put("/api/me/diet-prefs", json={"prefs": []}).json() == []
+    assert auth_client.get("/api/me/diet-prefs").json() == []
+
+
+def test_diet_prefs_are_per_user(sign_up: SignUp) -> None:
+    ana = sign_up("ana@example.com", "Ana")
+    ben = sign_up("ben@example.com", "Ben")
+    join_household(ben, ana)
+    vegan = tag_id(ana, "vegan")
+    ana.put("/api/me/diet-prefs", json={"prefs": [{"tag_id": vegan, "mode": "require"}]})
+
+    assert ben.get("/api/me/diet-prefs").json() == []
+
+
+def test_diet_pref_mode_is_validated(auth_client: TestClient) -> None:
+    vegan = tag_id(auth_client, "vegan")
+    response = auth_client.put(
+        "/api/me/diet-prefs", json={"prefs": [{"tag_id": vegan, "mode": "prefer"}]}
+    )
+    assert response.status_code == 422
+
+
+def test_dietary_tags_have_kinds(auth_client: TestClient) -> None:
+    tags = {t["name"]: t["kind"] for t in auth_client.get("/api/dietary-tags").json()}
+    assert tags["vegan"] == "diet"
+    assert tags["contains-nuts"] == "allergen"
+
+
+def test_recipe_list_paginates(auth_client: TestClient) -> None:
+    first = auth_client.get("/api/recipes", params={"limit": 5}).json()
+    second = auth_client.get("/api/recipes", params={"limit": 5, "offset": 5}).json()
+
+    assert len(first) == len(second) == 5
+    assert not {r["id"] for r in first} & {r["id"] for r in second}
+    titles = [r["title"] for r in first + second]
+    assert titles == sorted(titles)
+
+
+def test_recipe_routes_require_session(client: TestClient) -> None:
+    assert client.get("/api/recipes/recommendations").status_code == 401
+    assert client.get("/api/recipes/1").status_code == 401
+    assert client.get("/api/me/diet-prefs").status_code == 401

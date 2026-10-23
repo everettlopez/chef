@@ -1,0 +1,4 @@
+,title,ingredients,directions,link,source,NER
+0,Test Garlic Rice,"[""1 cup rice"", ""2 cloves garlic, minced"", ""1 tbsp butter""]","[""Cook rice."", ""Stir in garlic and butter.""]",example.com/garlic-rice,Gathered,"[""rice"", ""garlic"", ""butter""]"
+1,Test Mystery Stew,"[""1 lb ground beef"", ""1 cup unobtainium flakes""]","[""Brown the beef."", ""Add flakes.""]",example.com/mystery-stew,Gathered,"[""ground beef"", ""unobtainium flakes""]"
+2,Test Over Limit,"[""1 egg""]","[""Boil.""]",example.com/over-limit,Gathered,"[""egg""]"

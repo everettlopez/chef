@@ -10,7 +10,8 @@ from app.db.base import Base
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Keep the app's loggers working when migrations run in-process (e.g. the migration test).
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Escape % so ConfigParser interpolation doesn't choke on URL-encoded passwords.
 config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%", "%%"))

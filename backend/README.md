@@ -13,7 +13,7 @@ app/
   db/           engine, session, declarative base
   core/         settings, password hashing and session tokens
 alembic/        migrations
-tests/          pytest suite (runs against the pantry_test database)
+tests/          pytest suite (pantry_test database; test_migrations.py uses pantry_migrate)
 ```
 
 ## Endpoints

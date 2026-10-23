@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router'
+import { createBrowserRouter, type RouteObject } from 'react-router'
 import { RequireAuth } from './components/AppLayout'
 import { HistoryPage } from './pages/HistoryPage'
 import { HouseholdPage } from './pages/HouseholdPage'
@@ -10,7 +10,7 @@ import { RecipesPage } from './pages/RecipesPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { WhatCanIMakePage } from './pages/WhatCanIMakePage'
 
-export const router = createBrowserRouter([
+export const routes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
   { path: '/signup', element: <SignupPage /> },
   {
@@ -27,4 +27,6 @@ export const router = createBrowserRouter([
       { path: '*', element: <NotFoundPage /> },
     ],
   },
-])
+]
+
+export const router = createBrowserRouter(routes)
