@@ -35,12 +35,30 @@ test('recipe search and diet filter', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '1 recipe' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Clear search' }).click()
-  // Let the debounced search reach the URL first: a diet click inside that 250 ms window can
-  // currently be overwritten (known bug in RecipesPage's debounce).
-  await expect(page).toHaveURL(/\/recipes$/)
   await page.getByRole('button', { name: 'Vegan' }).click()
   await expect(page.getByRole('button', { name: 'Vegan' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByRole('heading', { name: /\d+ recipes?/ })).not.toHaveText('40 recipes')
+})
+
+// Regression: a diet click inside the 250 ms search debounce used to be overwritten when the
+// debounce fired (reproduced at 200 ms in Chromium).
+test('a diet filter picked right after editing the search sticks', async ({ page }) => {
+  await signUp(page)
+  for (const delay of [0, 100, 150, 200, 225, 245]) {
+    await page.goto('/recipes?q=chickpeas')
+    await expect(page.getByRole('heading', { name: '1 recipe' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Clear search' }).click()
+    await page.waitForTimeout(delay)
+    await page.getByRole('button', { name: 'Vegan' }).click()
+    await page.waitForTimeout(400) // past the debounce
+
+    expect(new URL(page.url()).search, `clicked after ${delay} ms`).toBe('?tag=2')
+    await expect(page.getByRole('button', { name: 'Vegan' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+  }
 })
 
 test('navigation works at this width', async ({ page }) => {

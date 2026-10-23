@@ -1,5 +1,5 @@
 import { Clock, SearchX } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { EmptyState, ErrorBanner, ListSkeleton, PageHeader } from '../components/ui/Feedback'
 import { List, ListRow } from '../components/ui/List'
@@ -7,6 +7,14 @@ import { SearchField } from '../components/ui/SearchField'
 import { useDietaryTags, useRecipes } from '../hooks/useRecipes'
 import { cn } from '../lib/cn'
 import { formatMinutes, tagLabel } from '../lib/format'
+
+/** `params` with `q` set to the trimmed search text, or removed when it's blank. */
+function withSearch(params: URLSearchParams, text: string): URLSearchParams {
+  const next = new URLSearchParams(params)
+  if (text.trim()) next.set('q', text.trim())
+  else next.delete('q')
+  return next
+}
 
 export function RecipesPage() {
   const [params, setParams] = useSearchParams()
@@ -16,25 +24,22 @@ export function RecipesPage() {
   const tags = useDietaryTags()
   const recipes = useRecipes({ q: q || undefined, tag_id: tagId })
 
+  const searchTimer = useRef<number | undefined>(undefined)
+
   // Debounce typing into the URL so search is shareable and survives reloads.
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setParams(
-        (prev) => {
-          const next = new URLSearchParams(prev)
-          if (text.trim()) next.set('q', text.trim())
-          else next.delete('q')
-          return next
-        },
-        { replace: true },
-      )
+    searchTimer.current = window.setTimeout(() => {
+      setParams((prev) => withSearch(prev, text), { replace: true })
     }, 250)
-    return () => window.clearTimeout(timer)
+    return () => window.clearTimeout(searchTimer.current)
   }, [text, setParams])
 
   function toggleTag(id: number) {
+    // A pending search update would rebuild the URL from params read before this click and
+    // drop the tag, so cancel it and write the search text here too.
+    window.clearTimeout(searchTimer.current)
     setParams((prev) => {
-      const next = new URLSearchParams(prev)
+      const next = withSearch(prev, text)
       if (tagId === id) next.delete('tag')
       else next.set('tag', String(id))
       return next

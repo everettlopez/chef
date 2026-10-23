@@ -168,6 +168,23 @@ describe('RecipesPage', () => {
     expect(screen.queryByRole('button', { name: /Nuts/ })).not.toBeInTheDocument()
   })
 
+  it('keeps a diet filter picked while a search change is still pending', async () => {
+    const { user, router } = renderApp('/recipes?q=omelette')
+    await screen.findByRole('heading', { name: '1 recipe' })
+
+    // Inside the 250 ms debounce: the click writes the pending search and the tag together.
+    await user.click(screen.getByRole('button', { name: 'Clear search' }))
+    await user.click(screen.getByRole('button', { name: 'Vegetarian' }))
+    expect(router.state.location.search).toBe('?tag=1')
+
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(router.state.location.search).toBe('?tag=1')
+    expect(screen.getByRole('button', { name: 'Vegetarian' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+  })
+
   it('has an empty state', async () => {
     renderApp('/recipes?q=zzz')
     expect(await screen.findByRole('heading', { name: 'No recipes found' })).toBeInTheDocument()
