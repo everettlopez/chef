@@ -8,8 +8,9 @@ export default defineConfig({
   server: {
     port: 5173,
     // Forward API calls to FastAPI so the browser sees a single origin in dev.
+    // CHEF_API_URL lets the Playwright run point at its own backend.
     proxy: {
-      '/api': 'http://localhost:8000',
+      '/api': process.env.CHEF_API_URL ?? 'http://localhost:8000',
     },
   },
   test: {
