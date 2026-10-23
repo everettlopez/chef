@@ -1,5 +1,7 @@
 # Chef — your home cooking helper
 
+[![CI](https://github.com/everettlopez/chef/actions/workflows/ci.yml/badge.svg)](https://github.com/everettlopez/chef/actions/workflows/ci.yml)
+
 Chef keeps a virtual pantry shared across a household and suggests recipes from what you
 already have, favoring ingredients that expire soon. Instead of finding a recipe and then
 checking the pantry, **the pantry finds the recipe**.
@@ -35,7 +37,8 @@ The full spec is [Chef Design Document v2.0](Chef%20Design%20Document%20v2.0.pdf
 frontend/   Vite app. Dev server on :5173 proxies /api to :8000
 backend/    FastAPI app on :8000 (OpenAPI docs at /docs); see backend/README.md
 pipelines/  Offline data scripts (RecipeNLG import skeleton); see pipelines/README.md
-docker/     MySQL init scripts (creates pantry_test for the test suite)
+docker/     MySQL init scripts (create the pantry_test, pantry_migrate and pantry_e2e databases)
+.github/    CI: lint, tests and end-to-end tests on every push and pull request
 ```
 
 MySQL is exposed on host port **3307** (not 3306) so it can coexist with a locally installed MySQL.
@@ -123,14 +126,31 @@ lighter tint, `#3fa37a`, in dark mode).
 
 New UI should use these tokens and components rather than one-off styles.
 
-## Checks
+## Testing
 
-```powershell
-cd backend;  uv run pytest; uv run ruff check .
-cd frontend; npm run build; npm run lint
-```
+Docker must be up: the backend and end-to-end tests use real MySQL databases.
 
-The backend tests run against the real MySQL `pantry_test` database, so Docker must be up.
+| Suite | Command | What it covers |
+| ----- | ------- | -------------- |
+| Backend | `cd backend; uv run pytest` | API routes, services, recommender, cook logs, resolver, security, seed, pipeline, Alembic round trip (~180 tests) |
+| Frontend | `cd frontend; npm test` | Format helpers, API client, UI components, hooks and every page, against a fake API (MSW) (~140 tests) |
+| End-to-end | `cd frontend; npm run test:e2e` | Real browser + real stack: sign-up, pantry, cooking and undo, shared households, diet filters, keyboard use, dark mode, at desktop and 375 px |
+
+Coverage: `uv run pytest --cov` (backend) and `npm run test:coverage` (frontend, HTML report in
+`frontend/coverage/`). Lint and format: `uv run ruff check .`, `uv run ruff format --check .`,
+`npm run lint`, `npm run build` (the type check).
+
+- **Databases.** API tests use `pantry_test` (rebuilt each run; every test is rolled back), the
+  migration test uses `pantry_migrate`, and Playwright uses `pantry_e2e`, which it migrates and
+  seeds itself. None of them touch your `pantry` dev data. They are created when the MySQL
+  volume is first initialized; if your volume predates them, run
+  `Get-Content docker/mysql/init/01-test-database.sql | docker exec -i pantry-mysql mysql -uroot -prootpassword`
+  (or `docker compose down -v` to start fresh).
+- **End-to-end setup.** Run `npx playwright install chromium` once. Playwright starts its own
+  backend on :8001 and frontend on :5174, so it doesn't clash with your dev servers. Every test
+  signs up a fresh `e2e-…@chef.test` user. `npx playwright test --ui` opens the interactive runner.
+- **CI.** `.github/workflows/ci.yml` runs all three suites on every push to `main` and every pull
+  request; coverage appears in each job's summary.
 
 ## Database changes
 
